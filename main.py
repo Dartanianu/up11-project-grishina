@@ -1,7 +1,7 @@
 import sys
 import os
 from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QScrollArea
+    QApplication, QMainWindow, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton
 )
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtCore import Qt
@@ -79,8 +79,11 @@ def create_card(products):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, role_id=None):
         super().__init__()
+        self.role_id = role_id
+        self.setup_ui()
+        self.setup_role_interface()
         
         self.db = Database(
             host='localhost',
@@ -147,9 +150,33 @@ class MainWindow(QMainWindow):
         self.db.close_all()
         event.accept()
 
+    def setup_ui(self):
+        self.order_button = QPushButton("Оформить заказ")
+        self.manager_button = QPushButton("Заказы (менеджер)")
+        self.admin_button = QPushButton("Админ-панель")
+
+    def setup_role_interface(self):
+        if self.role_id == 1:
+            self.admin_button.show()
+            self.manager_button.show()
+        elif self.role_id == 2:
+            self.manager_button.show()
+        elif self.role_id == 3:
+            self.order_button.show()
+        else:
+            self.order_button.hide()
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    window = MainWindow()
-    window.show()
+    db = Database(
+        host='localhost',
+        port=5432,
+        dbname="database",
+        user="postgres",
+        password="123"
+    )
+    from login_window import LoginWindow
+    login_window = LoginWindow(db)
+    login_window.show()
     sys.exit(app.exec())
