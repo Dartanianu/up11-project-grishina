@@ -46,20 +46,32 @@ class Database:
         try:
             cur = conn.cursor()
             cur.execute("""
-                SELECT 
+            SELECT 
                 p.product_id, 
                 p.name,
                 p.description,
                 p.compound,
                 p.price, 
                 p.image_path,
-                p.manufacture_id,
-                p.category_id,
-                p.subcategory_id,
+                manu.name AS manufacture_name,
+                c.name AS category_name,
+                subc.name AS subcategory_name,
                 COALESCE(SUM(si.quantity), 0) AS total_quantity
-                FROM products p
-                LEFT JOIN stock_items si ON p.product_id = si.product_id
-                GROUP BY p.product_id;
+            FROM products p
+            LEFT JOIN manufactures manu ON p.manufacture_id = manu.manufacture_id
+            LEFT JOIN categories c ON p.category_id = c.category_id
+            LEFT JOIN subcategories subc ON p.subcategory_id = subc.subcategory_id
+            LEFT JOIN stock_items si ON p.product_id = si.product_id
+            GROUP BY 
+                p.product_id, 
+                p.name,
+                p.description,
+                p.compound,
+                p.price, 
+                p.image_path,
+                manu.name,
+                c.name,
+                subc.name;
             """)
             result = cur.fetchall()
             cur.close()

@@ -43,8 +43,12 @@ class LoginWindow(QWidget):
         
         try:
             cursor = conn.cursor()
-            cursor.execute("SELECT user_id, role_id FROM users WHERE login = %s", (login,))
+            cursor.execute("SELECT u.user_id, u.role_id, u.last_name, u.first_name, u.second_name, roles.name FROM users u LEFT JOIN roles ON u.role_id = roles.role_id WHERE login = %s", (login,))
             result = cursor.fetchone()
+            if result[4] is None:
+                self.full_name = f"{result[2]} {result[3]}"
+            else:
+                self.full_name = f"{result[2]} {result[3]} {result[4]} ({result[5]})"
             cursor.close()
         finally:
             self.db.release_connection(conn)
@@ -56,6 +60,6 @@ class LoginWindow(QWidget):
         self.user_id = result[0]
         self.role_id = result[1]
         
-        self.main_window = MainWindow(role_id=self.role_id)
+        self.main_window = MainWindow(db=self.db, role_id=self.role_id, full_name=self.full_name)
         self.main_window.show()
         self.close()

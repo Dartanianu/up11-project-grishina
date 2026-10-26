@@ -1,14 +1,16 @@
 import sys
 import os
 from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton
+    QApplication, QMainWindow, QWidget, QLabel, QVBoxLayout, QHBoxLayout,
+    QScrollArea, QPushButton, QMessageBox
 )
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtCore import Qt
 from database import Database
+from discount import calculate_price
 
 
-def create_card(products):
+def create_card(products, db):
     card = QWidget()
     card.setObjectName("productCard")
     card.setStyleSheet("""
@@ -29,35 +31,35 @@ def create_card(products):
     image_lable.setStyleSheet("border: 1px solid #000000;")
 
     file_name = products[5]
-    
+
     if file_name:
         image_path = os.path.join("Images", file_name)
     else:
         image_path = os.path.join("resources", "picture.png")
 
     pixmap = QPixmap(image_path)
-    
+
     if pixmap.isNull():
         image_lable.setText("IMG")
     else:
         image_lable.setPixmap(
             pixmap.scaled(100, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation)
         )
-        
+
     main_layout.addWidget(image_lable)
 
     text_layout = QVBoxLayout()
     text_layout.setSpacing(5)
-    
-    title = QLabel(f"Производство | {products[1]}")
+
+    title = QLabel(f"{products[6]} | {products[1]}")
     title.setStyleSheet("font-weight: bold; font-size: 14px; border: none;")
-    
+
     category_label = QLabel(f"Категория: {products[7]}")
     category_label.setStyleSheet("border: none;")
-    
+
     quantity_label = QLabel(f"Количество: {products[9]}")
     quantity_label.setStyleSheet("border: none;")
-    
+
     compound_label = QLabel(f"Состав: {products[3]}")
     compound_label.setStyleSheet("border: none;")
     compound_label.setWordWrap(True)
@@ -69,29 +71,46 @@ def create_card(products):
     text_layout.addStretch()
 
     main_layout.addLayout(text_layout, 1)
+    
+    old_price = products[4]
+    new_price = calculate_price(products[0], old_price, db)
+    
+    discount = (old_price - new_price) / old_price * 100
+    
+    old_price_lable = QLabel(f"<s>{old_price}</s>")
+    old_price_lable.setStyleSheet("color: red;")
 
-    price_label = QLabel(f"{products[4]} ₽")
-    price_label.setAlignment(Qt.AlignTop | Qt.AlignRight)
-    price_label.setStyleSheet("font-size: 14px; border: none;")
-    main_layout.addWidget(price_label)
+    new_price_label = QLabel(f"{new_price} ₽")
+    new_price_label.setStyleSheet("font-weight: bold; color: black;")
+    
+    if discount > 0:
+        old_price_lable.show()
+    else:
+        old_price_lable.hide()
+    
+    price_layout = QVBoxLayout()
+    price_layout.setContentsMargins(0, 0, 0, 0) 
+    price_layout.addWidget(old_price_lable)
+    price_layout.addSpacing(2)
+    price_layout.addWidget(new_price_label)
+    price_layout.addStretch()
+    
+    main_layout.addLayout(price_layout)
+    
 
     return card
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, role_id=None):
+    def __init__(self, db, role_id=None, full_name=None):
         super().__init__()
+        self.db = db
         self.role_id = role_id
-        self.setup_ui()
-        self.setup_role_interface()
-        
-        self.db = Database(
-            host='localhost',
-            port=5432,
-            dbname="database",
-            user="postgres",
-            password="123"
-        )
+        self.full_name = full_name
+
+        self.setWindowTitle("Сумки и аксессуары")
+        self.resize(800, 600)
+        self.setWindowIcon(QIcon('resources/icon.ico'))
 
         self.setStyleSheet("""
             QMainWindow {
@@ -103,9 +122,53 @@ class MainWindow(QMainWindow):
             }
         """)
 
-        self.setWindowTitle("Сумки и аксессуары")
-        self.resize(800, 600)
-        self.setWindowIcon(QIcon('resources/icon.ico'))
+        central = QWidget()
+        root_layout = QVBoxLayout(central)
+        root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.setSpacing(0)
+        self.setCentralWidget(central)
+        
+        header = QWidget()
+        header.setObjectName("header")
+        header.setStyleSheet("#header { background-color: #FFFFFF; }")
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(10, 8, 10, 8)
+        header_layout.setSpacing(10)
+        
+        self.logo = QLabel()
+        logo_pixmap = QPixmap('resources/logo.png')
+        if not logo_pixmap.isNull():
+            self.logo.setPixmap(
+                logo_pixmap.scaledToHeight(50, Qt.SmoothTransformation)
+            )
+        else:
+            self.logo.setText("LOGO")
+        self.logo.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        header_layout.addWidget(self.logo)
+
+        header_layout.addStretch(1)
+        
+        self.order_button = QPushButton("Оформить заказ")
+        self.manager_button = QPushButton("Заказы (менеджер)")
+        self.admin_button = QPushButton("Админ-панель")
+
+        header_layout.addWidget(self.order_button)
+        header_layout.addWidget(self.manager_button)
+        header_layout.addWidget(self.admin_button)
+
+        self.order_button.hide()
+        self.manager_button.hide()
+        self.admin_button.hide()
+
+        self.name = QLabel(f"ФИО: {self.full_name}")
+        self.name.setStyleSheet("font-weight: bold; font-size: 14px;")
+        header_layout.addWidget(self.name)
+        
+        self.logout_button = QPushButton("Выход")
+        self.logout_button.clicked.connect(self.logout)
+        header_layout.addWidget(self.logout_button)
+
+        root_layout.addWidget(header)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -113,7 +176,7 @@ class MainWindow(QMainWindow):
 
         scroll_content = QWidget()
         scroll_content.setObjectName("scrollContent")
-        scroll_content.setStyleSheet("#scrollContent { background-color: #FFFFFF; }") 
+        scroll_content.setStyleSheet("#scrollContent { background-color: #FFFFFF; }")
 
         layout = QVBoxLayout(scroll_content)
         layout.setContentsMargins(10, 10, 10, 10)
@@ -123,16 +186,11 @@ class MainWindow(QMainWindow):
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet("font-size: 28px; font-weight: bold; padding: 10px;")
         layout.addWidget(title)
-        
-        logo = QLabel()
-        logo.setPixmap(QPixmap('resources/logo.png'))
-        logo.setAlignment(Qt.AlignCenter)
-        layout.addWidget(logo)
 
         products = self.db.get_products()
         print(f"Загружено товаров: {len(products)}")
         for product in products:
-            card = create_card(product)
+            card = create_card(product, self.db)
             layout.addWidget(card)
 
         version = QLabel("v1.0")
@@ -141,21 +199,17 @@ class MainWindow(QMainWindow):
         layout.addWidget(version)
 
         layout.addStretch()
-
         scroll.setWidget(scroll_content)
 
-        self.setCentralWidget(scroll)
+        root_layout.addWidget(scroll, 1)
 
-    def closeEvent(self, event):
-        self.db.close_all()
-        event.accept()
-
-    def setup_ui(self):
-        self.order_button = QPushButton("Оформить заказ")
-        self.manager_button = QPushButton("Заказы (менеджер)")
-        self.admin_button = QPushButton("Админ-панель")
+        self.setup_role_interface()
 
     def setup_role_interface(self):
+        self.order_button.hide()
+        self.manager_button.hide()
+        self.admin_button.hide()
+
         if self.role_id == 1:
             self.admin_button.show()
             self.manager_button.show()
@@ -163,8 +217,23 @@ class MainWindow(QMainWindow):
             self.manager_button.show()
         elif self.role_id == 3:
             self.order_button.show()
-        else:
-            self.order_button.hide()
+
+    def closeEvent(self, event):
+        event.accept()
+        
+    def logout(self):
+        reply = QMessageBox.question(
+            self,
+            "Подтверждение выхода",
+            "Вы уверены, что хотите выйти?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        if reply == QMessageBox.Yes:
+            from login_window import LoginWindow
+            self.login_window = LoginWindow(self.db)
+            self.login_window.show()
+            self.close()
 
 
 if __name__ == "__main__":
@@ -176,6 +245,8 @@ if __name__ == "__main__":
         user="postgres",
         password="123"
     )
+    app.aboutToQuit.connect(db.close_all)
+    
     from login_window import LoginWindow
     login_window = LoginWindow(db)
     login_window.show()
