@@ -40,12 +40,14 @@ class Database:
         else:
             print("Пул не был создан — закрывать нечего.")
 
-    def get_products(self):
+    def get_products(self, order='ASC'):
         conn = self.get_connection()
+        if order.upper() not in ('ASC', 'DESC'):
+            order = 'ASC'
 
         try:
             cur = conn.cursor()
-            cur.execute("""
+            cur.execute(f"""
             SELECT 
                 p.product_id, 
                 p.name,
@@ -71,7 +73,8 @@ class Database:
                 p.image_path,
                 manu.name,
                 c.name,
-                subc.name;
+                subc.name
+            ORDER BY p.price {order};
             """)
             result = cur.fetchall()
             cur.close()
@@ -82,6 +85,22 @@ class Database:
         finally:
             self.release_connection(conn)
         
+    def get_categories(self):
+        conn = self.get_connection()
+        if conn is None:
+            return []
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT DISTINCT category FROM products")
+            result = [row[0] for row in cur.fetchall()]
+            cur.close()
+            return result
+        except psycopg2.Error as e:
+            print(f"Ошибка при выполнения запроса SELECT categories: {e}")
+            return []
+        finally:
+            self.release_connection(conn)
+    
     def execute_query(self, sql, params=None):
         conn = self.get_connection()
         if conn is None:

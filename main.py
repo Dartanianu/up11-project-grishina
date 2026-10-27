@@ -2,7 +2,7 @@ import sys
 import os
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QLabel, QVBoxLayout, QHBoxLayout,
-    QScrollArea, QPushButton, QMessageBox
+    QScrollArea, QPushButton, QMessageBox, QComboBox
 )
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtCore import Qt
@@ -13,13 +13,6 @@ from discount import calculate_price, calculate_discount
 def create_card(products, db):
     card = QWidget()
     card.setObjectName("productCard")
-    card.setStyleSheet("""
-        #productCard {
-            border: 1px solid #000000;
-            border-radius: 4px;
-            background-color: #FFFFFF;
-        }
-    """)
 
     main_layout = QHBoxLayout(card)
     main_layout.setContentsMargins(10, 10, 10, 10)
@@ -77,17 +70,37 @@ def create_card(products, db):
 
     discount = calculate_discount(old_price, new_price)
     
-    discount = (old_price - new_price) / old_price * 100
-    
     old_price_lable = QLabel(f"<s>{old_price}</s>")
-    old_price_lable.setStyleSheet("color: red;")
+    old_price_lable.setStyleSheet("color: red; border: none;")
 
     new_price_label = QLabel(f"{new_price} ₽")
+    
+    total_quantity = products[9]
 
-    if discount > 15:
-        new_price_label.setStyleSheet("color: #2E8B57; font-weight: bold;")
+    if total_quantity == 0:
+        card.setStyleSheet(
+            "border: 1px solid #000000; border-radius: 4px; "
+            "background-color: #ADD8E6;"
+        )
+        new_price_label.setStyleSheet(
+            "font-weight: bold; color: black; border: none;"
+        )
+    elif discount > 15:
+        card.setStyleSheet(
+            "background-color: #FFFFFF; border: 1px solid #000000; "
+            "border-radius: 4px;"
+        )
+        new_price_label.setStyleSheet(
+            "color: #2E8B57; font-weight: bold; border: none;"
+        )
     else:
-        new_price_label.setStyleSheet("font-weight: bold; color: black;")
+        card.setStyleSheet(
+            "background-color: #FFFFFF; border: 1px solid #000000; "
+            "border-radius: 4px;"
+        )
+        new_price_label.setStyleSheet(
+            "font-weight: bold; color: black; border: none;"
+        )
     
     if discount > 0:
         old_price_lable.show()
@@ -126,6 +139,14 @@ class MainWindow(QMainWindow):
             QLabel {
                 color: #000000;
             }
+            QPushButton {
+                background-color: #70B2AF;
+                color: white;
+                font-family: Calibri;
+                border: none;
+                border-radius: 10;
+                padding: 8px 16px;
+            }
         """)
 
         central = QWidget()
@@ -136,7 +157,7 @@ class MainWindow(QMainWindow):
         
         header = QWidget()
         header.setObjectName("header")
-        header.setStyleSheet("#header { background-color: #FFFFFF; }")
+        header.setStyleSheet("#header { background-color: #D2F6E7;}")
         header_layout = QHBoxLayout(header)
         header_layout.setContentsMargins(10, 8, 10, 8)
         header_layout.setSpacing(10)
@@ -192,12 +213,23 @@ class MainWindow(QMainWindow):
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet("font-size: 28px; font-weight: bold; padding: 10px;")
         layout.addWidget(title)
-
-        products = self.db.get_products()
-        print(f"Загружено товаров: {len(products)}")
-        for product in products:
-            card = create_card(product, self.db)
-            layout.addWidget(card)
+        
+        sort_layout = QHBoxLayout()
+        sort_label = QLabel("Сортировка по цене:")
+        sort_label.setStyleSheet("font-size: 14px;")
+        self.sort_combo = QComboBox()
+        self.sort_combo.addItems(["По возрастанию", "По убыванию"])
+        self.sort_combo.currentIndexChanged.connect(self.load_products)
+        sort_layout.addWidget(sort_label)
+        sort_layout.addWidget(self.sort_combo)
+        sort_layout.addStretch()
+        layout.addLayout(sort_layout)
+        
+        self.cards_layout = QVBoxLayout()
+        self.cards_layout.setSpacing(10)
+        layout.addLayout(self.cards_layout)
+        
+        self.load_products()
 
         version = QLabel("v1.0")
         version.setAlignment(Qt.AlignCenter)
@@ -210,6 +242,22 @@ class MainWindow(QMainWindow):
         root_layout.addWidget(scroll, 1)
 
         self.setup_role_interface()
+
+    def load_products(self):
+        while self.cards_layout.count():
+            item = self.cards_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+        order = 'ASC' if self.sort_combo.currentIndex() == 0 else 'DESC'
+
+        products = self.db.get_products(order)
+        print(f"Загружено товаров: {len(products)} (порядок: {order})")
+
+        for product in products:
+            card = create_card(product, self.db)
+            self.cards_layout.addWidget(card)
 
     def setup_role_interface(self):
         self.order_button.hide()
