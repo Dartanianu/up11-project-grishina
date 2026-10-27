@@ -1,6 +1,11 @@
 import psycopg2
 import datetime
 
+def calculate_discount(old_price, new_price):
+    if old_price == 0:
+        return 0
+    else:
+        return (old_price - new_price) / old_price * 100
 
 def calculate_price(product_id, old_price, db):
     now = datetime.datetime.now()

@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtCore import Qt
 from database import Database
-from discount import calculate_price
+from discount import calculate_price, calculate_discount
 
 
 def create_card(products, db):
@@ -74,6 +74,8 @@ def create_card(products, db):
     
     old_price = products[4]
     new_price = calculate_price(products[0], old_price, db)
+
+    discount = calculate_discount(old_price, new_price)
     
     discount = (old_price - new_price) / old_price * 100
     
@@ -81,7 +83,11 @@ def create_card(products, db):
     old_price_lable.setStyleSheet("color: red;")
 
     new_price_label = QLabel(f"{new_price} ₽")
-    new_price_label.setStyleSheet("font-weight: bold; color: black;")
+
+    if discount > 15:
+        new_price_label.setStyleSheet("color: #2E8B57; font-weight: bold;")
+    else:
+        new_price_label.setStyleSheet("font-weight: bold; color: black;")
     
     if discount > 0:
         old_price_lable.show()
