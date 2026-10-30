@@ -2,7 +2,7 @@ import sys
 import os
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QLabel, QVBoxLayout, QHBoxLayout,
-    QScrollArea, QPushButton, QMessageBox, QComboBox
+    QScrollArea, QPushButton, QMessageBox, QComboBox, QLineEdit
 )
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtCore import Qt
@@ -25,6 +25,7 @@ def create_card(products, db):
 
     file_name = products[5]
 
+    # Если картинки нет в БД, берем стандартную
     if file_name:
         image_path = os.path.join("Images", file_name)
     else:
@@ -64,23 +65,24 @@ def create_card(products, db):
     text_layout.addStretch()
 
     main_layout.addLayout(text_layout, 1)
-    
+
     old_price = products[4]
     new_price = calculate_price(products[0], old_price, db)
 
     discount = calculate_discount(old_price, new_price)
-    
+
     old_price_lable = QLabel(f"<s>{old_price}</s>")
     old_price_lable.setStyleSheet("color: red; border: none;")
 
     new_price_label = QLabel(f"{new_price} ₽")
-    
+
     total_quantity = products[9]
 
-    if total_quantity == 0:
+    # В наличии меньше 3 - красный, большая скидка - зеленая цена, иначе обычный
+    if total_quantity <= 3:
         card.setStyleSheet(
             "border: 1px solid #000000; border-radius: 4px; "
-            "background-color: #ADD8E6;"
+            "background-color: #FF8080;"
         )
         new_price_label.setStyleSheet(
             "font-weight: bold; color: black; border: none;"
@@ -101,21 +103,21 @@ def create_card(products, db):
         new_price_label.setStyleSheet(
             "font-weight: bold; color: black; border: none;"
         )
-    
+
+    # Если скидки нет, прячем старую цену
     if discount > 0:
         old_price_lable.show()
     else:
         old_price_lable.hide()
-    
+
     price_layout = QVBoxLayout()
-    price_layout.setContentsMargins(0, 0, 0, 0) 
+    price_layout.setContentsMargins(0, 0, 0, 0)
     price_layout.addWidget(old_price_lable)
     price_layout.addSpacing(2)
     price_layout.addWidget(new_price_label)
     price_layout.addStretch()
-    
+
     main_layout.addLayout(price_layout)
-    
 
     return card
 
@@ -131,6 +133,7 @@ class MainWindow(QMainWindow):
         self.resize(800, 600)
         self.setWindowIcon(QIcon('resources/icon.ico'))
 
+        # Общие стили для всего окна
         self.setStyleSheet("""
             QMainWindow {
                 background-color: #FFFFFF;
@@ -154,14 +157,15 @@ class MainWindow(QMainWindow):
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(0)
         self.setCentralWidget(central)
-        
+
+        # Header
         header = QWidget()
         header.setObjectName("header")
         header.setStyleSheet("#header { background-color: #D2F6E7;}")
         header_layout = QHBoxLayout(header)
         header_layout.setContentsMargins(10, 8, 10, 8)
         header_layout.setSpacing(10)
-        
+
         self.logo = QLabel()
         logo_pixmap = QPixmap('resources/logo.png')
         if not logo_pixmap.isNull():
@@ -174,7 +178,7 @@ class MainWindow(QMainWindow):
         header_layout.addWidget(self.logo)
 
         header_layout.addStretch(1)
-        
+
         self.order_button = QPushButton("Оформить заказ")
         self.manager_button = QPushButton("Заказы (менеджер)")
         self.admin_button = QPushButton("Админ-панель")
@@ -183,14 +187,10 @@ class MainWindow(QMainWindow):
         header_layout.addWidget(self.manager_button)
         header_layout.addWidget(self.admin_button)
 
-        self.order_button.hide()
-        self.manager_button.hide()
-        self.admin_button.hide()
-
         self.name = QLabel(f"ФИО: {self.full_name}")
         self.name.setStyleSheet("font-weight: bold; font-size: 14px;")
         header_layout.addWidget(self.name)
-        
+
         self.logout_button = QPushButton("Выход")
         self.logout_button.clicked.connect(self.logout)
         header_layout.addWidget(self.logout_button)
@@ -203,7 +203,9 @@ class MainWindow(QMainWindow):
 
         scroll_content = QWidget()
         scroll_content.setObjectName("scrollContent")
-        scroll_content.setStyleSheet("#scrollContent { background-color: #FFFFFF; }")
+        scroll_content.setStyleSheet(
+            "#scrollContent { background-color: #FFFFFF; }"
+        )
 
         layout = QVBoxLayout(scroll_content)
         layout.setContentsMargins(10, 10, 10, 10)
@@ -211,24 +213,58 @@ class MainWindow(QMainWindow):
 
         title = QLabel("Сумки и аксессуары - Каталог")
         title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet("font-size: 28px; font-weight: bold; padding: 10px;")
+        title.setStyleSheet(
+            "font-size: 28px; font-weight: bold; padding: 10px;"
+        )
         layout.addWidget(title)
-        
+
+        # Блок сортировки
         sort_layout = QHBoxLayout()
         sort_label = QLabel("Сортировка по цене:")
         sort_label.setStyleSheet("font-size: 14px;")
+
         self.sort_combo = QComboBox()
         self.sort_combo.addItems(["По возрастанию", "По убыванию"])
         self.sort_combo.currentIndexChanged.connect(self.load_products)
+
         sort_layout.addWidget(sort_label)
         sort_layout.addWidget(self.sort_combo)
         sort_layout.addStretch()
         layout.addLayout(sort_layout)
-        
+
+        # Блок фильтрации
+        filter_layout = QHBoxLayout()
+        filter_label = QLabel("Фильтрация:")
+        filter_label.setStyleSheet("font-size: 14px;")
+
+        self.filter_combo = QComboBox()
+        self.filter_combo.addItem("Все категории")
+        self.filter_combo.addItems(self.db.get_categories())
+        self.filter_combo.currentIndexChanged.connect(self.load_products)
+
+        filter_layout.addWidget(filter_label)
+        filter_layout.addWidget(self.filter_combo)
+        filter_layout.addStretch() # Добавил отступ именно сюда
+        layout.addLayout(filter_layout)
+
+        # Блок поиска
+        search_layout = QHBoxLayout()
+        search_label = QLabel("Поиск:")
+        search_label.setStyleSheet("font-size: 14px;")
+
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Поиск...")
+        self.search_input.textChanged.connect(self.load_products)
+
+        search_layout.addWidget(search_label)
+        search_layout.addWidget(self.search_input)
+        layout.addLayout(search_layout)
+
+        # Сюда будут добавляться карточки товаров
         self.cards_layout = QVBoxLayout()
         self.cards_layout.setSpacing(10)
         layout.addLayout(self.cards_layout)
-        
+
         self.load_products()
 
         version = QLabel("v1.0")
@@ -243,22 +279,41 @@ class MainWindow(QMainWindow):
 
         self.setup_role_interface()
 
+    # Функция загрузки товаров
     def load_products(self):
+        # Удаляем старые карточки с экрана перед загрузкой новых
         while self.cards_layout.count():
             item = self.cards_layout.takeAt(0)
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
 
+        # Сортировка
         order = 'ASC' if self.sort_combo.currentIndex() == 0 else 'DESC'
 
-        products = self.db.get_products(order)
-        print(f"Загружено товаров: {len(products)} (порядок: {order})")
+        # Категория
+        selected_category = self.filter_combo.currentText()
+        if selected_category == "Все категории":
+            selected_category = None
 
+        # Текст поиска
+        search_text = self.search_input.text().strip() or None
+
+        # Запрос товаров из БД
+        products = self.db.get_products(order, selected_category, search_text)
+
+        print(
+            f"Загружено товаров: {len(products)} "
+            f"(порядок: {order}, категория: {selected_category or 'все'}, "
+            f"поиск: {search_text or '—'})"
+        )
+
+        # Создание карточек товаров
         for product in products:
             card = create_card(product, self.db)
             self.cards_layout.addWidget(card)
 
+    # Функция показа кнопок в зависимости от роли
     def setup_role_interface(self):
         self.order_button.hide()
         self.manager_button.hide()
@@ -274,7 +329,8 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         event.accept()
-        
+
+    # Выхода из аккаунта
     def logout(self):
         reply = QMessageBox.question(
             self,
@@ -300,7 +356,7 @@ if __name__ == "__main__":
         password="123"
     )
     app.aboutToQuit.connect(db.close_all)
-    
+
     from login_window import LoginWindow
     login_window = LoginWindow(db)
     login_window.show()
